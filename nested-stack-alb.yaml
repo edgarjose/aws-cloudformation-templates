@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Template for the application load balancer
+
+Parameters:
+  VpcStackName:
+    Description: The name of the VPC stack
+    Type: String
+
+Resources:
+  # Application Load Balancer
+  PraticalALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+      Name: PraticalALB
+      Scheme: internet-facing 
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${VpcStackName}-SecurityGroupALB
+      Subnets:
+        - Fn::ImportValue: !Sub ${VpcStackName}-PublicSubnet1
+        - Fn::ImportValue: !Sub ${VpcStackName}-PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: PraticalALB
+      Type: application
+
+  # Application Load Balancer Listener - port 80
+  PraticalALBlistener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref PraticalTargetGroup
+      LoadBalancerArn: !Ref PraticalALB
+      Port: 80
+      Protocol: HTTP
+    DependsOn: PraticalALB
+
+  # Target Group for the Application Load Balancer
+  PraticalTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 5
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Name: PraticalTargetGroup
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      Tags:
+        - Key: Name
+          Value: PraticalTargetGroup
+      VpcId:
+        Fn::ImportValue: !Sub ${VpcStackName}-VPC
+
+Outputs:
+  # Export Application Load balancer DNS
+  ALBDNS:
+    Description: DNS of the application load balancer
+    Export:
+      Name: !Sub ${AWS::StackName}-PraticalALB
+    Value: !GetAtt PraticalALB.DNSName
+
+  # Export Load Balancer Target Group
+  ALBTargetGroup:
+    Description: Web Server target group
+    Export:
+      Name: !Sub ${AWS::StackName}-PraticalTargetGroup
+    Value: 
+      Ref: PraticalTargetGroup
